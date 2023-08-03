@@ -1,0 +1,24 @@
+name: Development
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, x86]
+        mode: [DebugMDd, DebugMTd, ReleaseMD, ReleaseMT]
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: microsoft/setup-msbuild@v1.1
+        with:
+          msbuild-architecture: ${{ matrix.arch }}
+
+      - name: Compile
+        run: MSBuild.exe /p:Configuration=${{ matrix.mode }} /p:Platform=${{ matrix.arch }} /maxcpucount:16 "liblzma.sln"

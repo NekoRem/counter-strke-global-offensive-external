@@ -1,0 +1,181 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+    - '*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, x86]
+        mode: [DebugMDd, DebugMTd, ReleaseMD, ReleaseMT]
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: microsoft/setup-msbuild@v1.1
+        with:
+          msbuild-architecture: ${{ matrix.arch }}
+
+      - name: Compile
+        run: MSBuild.exe /p:Configuration=${{ matrix.mode }} /p:Platform=${{ matrix.arch }} /maxcpucount:16 "liblzma.sln"
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.mode }}-${{ matrix.arch }}
+          path: build/${{ matrix.mode }}-${{ matrix.arch }}/liblzma.lib
+
+      - name: Upload liblzma.pdb artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.mode }}-${{ matrix.arch }}-PDB
+          path: build/${{ matrix.mode }}-${{ matrix.arch }}/liblzma.pdb
+        if: ${{ matrix.mode != 'Release' }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Download x86 liblzma artifact (MDd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMDd-x86
+          path: build/x86/md/Debug
+
+      - name: Download x86 PDB artifact (MDd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMDd-x86-PDB
+          path: build/x86/md/Debug
+
+      - name: Download x64 liblzma artifact (MDd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMDd-x64
+          path: build/x64/md/Debug
+
+      - name: Download x64 PDB artifact (MDd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMDd-x64-PDB
+          path: build/x64/md/Debug
+
+      - name: Download x86 liblzma artifact (MTd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMTd-x86
+          path: build/x86/mt/Debug
+
+      - name: Download x86 PDB artifact (MTd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMTd-x86-PDB
+          path: build/x86/mt/Debug
+
+      - name: Download x64 liblzma artifact (MTd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMTd-x64
+          path: build/x64/mt/Debug
+
+      - name: Download x64 PDB artifact (MTd)
+        uses: actions/download-artifact@v3
+        with:
+          name: DebugMTd-x64-PDB
+          path: build/x64/mt/Debug
+
+      - name: Download x86 liblzma artifact (MD)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMD-x86
+          path: build/x86/md/Release
+
+      - name: Download x86 PDB artifact (MD)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMD-x86-PDB
+          path: build/x86/md/Release
+
+      - name: Download x64 liblzma artifact (MD)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMD-x64
+          path: build/x64/md/Release
+
+      - name: Download x64 PDB artifact (MD)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMD-x64-PDB
+          path: build/x64/md/Release
+
+      - name: Download x86 liblzma artifact (MT)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMT-x86
+          path: build/x86/md/Release
+
+      - name: Download x86 PDB artifact (MT)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMT-x86-PDB
+          path: build/x86/md/Release
+
+      - name: Download x64 liblzma artifact (MT)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMT-x64
+          path: build/x64/md/Release
+
+      - name: Download x64 PDB artifact (MT)
+        uses: actions/download-artifact@v3
+        with:
+          name: ReleaseMT-x64-PDB
+          path: build/x64/md/Release
+
+      - name: Delete workflow artifacts
+        uses: geekyeggo/delete-artifact@v1
+        with:
+          name: |
+            DebugMDd-x86
+            DebugMDd-x86-PDB
+            DebugMDd-x64
+            DebugMDd-x64-PDB
+            DebugMTd-x86
+            DebugMTd-x86-PDB
+            DebugMTd-x64
+            DebugMTd-x64-PDB
+            ReleaseMD-x86
+            ReleaseMD-x86-PDB
+            ReleaseMD-x64
+            ReleaseMD-x64-PDB
+            ReleaseMT-x86
+            ReleaseMT-x86-PDB
+            ReleaseMT-x64
+            ReleaseMT-x64-PDB
+
+      - name: Create .zip archive
+        run: |
+          mkdir -p liblzma
+          mv build liblzma/lib
+          mv include liblzma
+
+          if ! hash zip 2>/dev/null; then
+            apt install -y zip
+          fi
+
+          zip -r "liblzma-msvc.zip" liblzma
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "liblzma-msvc.zip"
+          bodyFile: .github/release_message.md
+          token: ${{ secrets.GITHUB_TOKEN }}

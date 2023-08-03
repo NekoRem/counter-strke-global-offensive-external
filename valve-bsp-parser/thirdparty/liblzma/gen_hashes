@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR="$(cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
+SCRIPT_DIR_LEN=${#SCRIPT_DIR}
+((SCRIPT_DIR_LEN++))
+
+FILE_DIRECTORIES=(
+  'include'
+  'src'
+)
+
+LOCK_FILE="${SCRIPT_DIR}/liblzma.lock"
+
+if test -f "${LOCK_FILE}"; then
+  rm "${LOCK_FILE}";
+fi
+
+for base_dir in "${FILE_DIRECTORIES[@]}"; do
+  find "${SCRIPT_DIR}/${base_dir}" -type f | while read filename; do
+    file_hash=$(sha1sum "$filename" | cut -d ' ' -f 1)
+    echo "${file_hash} ${filename:$SCRIPT_DIR_LEN}" >> "${LOCK_FILE}"
+  done
+done
